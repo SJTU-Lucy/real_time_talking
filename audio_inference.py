@@ -26,20 +26,10 @@ def seed_everything(seed):
     torch.cuda.manual_seed_all(seed)
 
 
-def run(SDK, sr=16000, chunk=6400):
-    p = pyaudio.PyAudio()
-    stream = p.open(format=pyaudio.paInt16,
-                    channels=1,
-                    rate=sr,
-                    input=True,
-                    frames_per_buffer=chunk)
-
-    while not keyboard.is_pressed('left ctrl'):
-        continue
-
-    while keyboard.is_pressed('left ctrl'):
-        data = stream.read(chunk)
-        audio_data = np.frombuffer(data, dtype=np.int16)
+def run(SDK, wav_file, sr=16000, chunk=6400):
+    raw_wav, _ = librosa.load(wav_file, sr=sr)
+    for i in range(0, raw_wav.shape[0], chunk):
+        audio_data = raw_wav[i:i+chunk]
         if len(audio_data) < chunk:
             audio_data = np.pad(audio_data, (0, chunk - len(audio_data)), mode="constant")
         SDK.wav_process_queue.put(audio_data)
@@ -48,17 +38,13 @@ def run(SDK, sr=16000, chunk=6400):
         if SDK.worker_exception:
             raise SDK.worker_exception
 
-    stream.stop_stream()
-    stream.close()
-    p.terminate()
-    time.sleep(10000)
-
     SDK.close()
 
 
 if __name__ == "__main__":
     output_path = "./result/output.txt"
+    wav_path = "C:/Users/18158/Desktop/data/all_emotions/train/WAV/angry/common/angry_gd02_001_029.wav"
     SDK = StreamSDK(output_path, device)
     SDK.setup()
     SDK.load_weight()
-    run(SDK)
+    run(SDK, wav_path)

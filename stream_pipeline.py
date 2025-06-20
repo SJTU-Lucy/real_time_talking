@@ -56,7 +56,7 @@ class StreamSDK:
             thread.start()
 
     def load_weight(self):
-        self.audio2face.load_state_dict(torch.load("weights/1000_model.pth", map_location=self.device))
+        self.audio2face.load_state_dict(torch.load("weights/1200_model.pth", map_location=self.device))
         self.audio2face.eval()
 
     def wav_process_worker(self):
