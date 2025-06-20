@@ -12,7 +12,9 @@ emotion_id = {"ang": 0, "dis": 1, "fea": 2, "hap": 3, "neu": 4, "sad": 5, "sur":
 class AudioDataProcessor:
     def __init__(self, sampling_rate=16000) -> None:
         # self._processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
-        self._processor = Wav2Vec2Processor.from_pretrained("C:/Users/Chang Liu/Desktop/wav2vec2-base-960h",
+        # self._processor = Wav2Vec2Processor.from_pretrained("C:/Users/Chang Liu/Desktop/wav2vec2-base-960h",
+        #                                                     local_files_only=True)
+        self._processor = Wav2Vec2Processor.from_pretrained("C:/Users/18158/Desktop/EmoFace/wav2vec2-base-960h",
                                                             local_files_only=True)
         self._sampling_rate = sampling_rate
 

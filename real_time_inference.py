@@ -26,7 +26,6 @@ def seed_everything(seed):
     torch.cuda.manual_seed_all(seed)
 
 
-
 def run(SDK, sr=16000, chunk=6400):
     p = pyaudio.PyAudio()
     stream = p.open(format=pyaudio.paInt16,

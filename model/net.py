@@ -52,10 +52,16 @@ class EmoFace(nn.Module):
 
         # self.audio_encoder_config = Wav2Vec2Config.from_pretrained("facebook/wav2vec2-base-960h")
         # self.audio_encoder = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base-960h")
-        self.audio_encoder_config = Wav2Vec2Config.from_pretrained("C:/Users/Chang Liu/Desktop/wav2vec2-base-960h",
-                                          local_files_only=True)
-        self.audio_encoder = Wav2Vec2Model.from_pretrained("C:/Users/Chang Liu/Desktop/wav2vec2-base-960h",
-                                          local_files_only=True)
+        # self.audio_encoder_config = Wav2Vec2Config.from_pretrained("C:/Users/Chang Liu/Desktop/wav2vec2-base-960h",
+        #                                   local_files_only=True)
+        # self.audio_encoder = Wav2Vec2Model.from_pretrained("C:/Users/Chang Liu/Desktop/wav2vec2-base-960h",
+        #                                   local_files_only=True)
+        self.audio_encoder_config = Wav2Vec2Config.from_pretrained("C:/Users/18158/Desktop/EmoFace/wav2vec2-base-960h",
+                                                                   local_files_only=True)
+        self.audio_encoder = Wav2Vec2Model.from_pretrained("C:/Users/18158/Desktop/EmoFace/wav2vec2-base-960h",
+                                                           local_files_only=True)
+
+
         self.audio_encoder.feature_extractor._freeze_parameters()
 
         encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead)
