@@ -12,10 +12,10 @@ emotion_id = {"ang": 0, "dis": 1, "fea": 2, "hap": 3, "neu": 4, "sad": 5, "sur":
 class AudioDataProcessor:
     def __init__(self, sampling_rate=16000) -> None:
         # self._processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
-        # self._processor = Wav2Vec2Processor.from_pretrained("C:/Users/Chang Liu/Desktop/wav2vec2-base-960h",
-        #                                                     local_files_only=True)
-        self._processor = Wav2Vec2Processor.from_pretrained("C:/Users/18158/Desktop/EmoFace/wav2vec2-base-960h",
+        self._processor = Wav2Vec2Processor.from_pretrained("C:/Users/86134/Desktop/pretrain_weights/wav2vec2-base-960h",
                                                             local_files_only=True)
+        # self._processor = Wav2Vec2Processor.from_pretrained("C:/Users/18158/Desktop/EmoFace/wav2vec2-base-960h",
+        #                                                     local_files_only=True)
         self._sampling_rate = sampling_rate
 
     def run(self, audio):
@@ -28,15 +28,13 @@ class AudioDataProcessor:
 
 
 class FeaturesConstructor:
-    def __init__(self, audio_max_duration=60):
-        self._audio_max_duration = audio_max_duration
+    def __init__(self):
         self._audio_data_processor = AudioDataProcessor()
         self._audio_sampling_rate = self._audio_data_processor.sampling_rate
-        self._fps = 60
+        self._fps = 30
 
     def __call__(self,  audio):
         audio_data = self._audio_data_processor.run(audio)
         seq_len = int(len(audio_data) / self._audio_sampling_rate * self._fps)
-        label_data = np.zeros((seq_len, label_dim))
-        feature_chunk = [audio_data, label_data]
+        feature_chunk = [audio_data, seq_len]
         return feature_chunk

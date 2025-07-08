@@ -35,34 +35,30 @@ class PositionalEncoding(torch.nn.Module):
         return self.dropout(x)
 
 
-class EmoFace(nn.Module):
-    def __init__(self, emo_dim, out_dim, d_model=512, nhead=8, num_layers=10, only_last_fetures=True,
-                 freeze_audio_encoder=False):
-
+class EncoderTransformer(nn.Module):
+    def __init__(self, out_dim, d_model=512, nhead=8, num_layers=10, identity_dim=8, emo_dim=4):
         super().__init__()
         self._out_dim = out_dim
-        self._only_last_features = only_last_fetures
 
-        self.embed = nn.Embedding(emo_dim, 256)
+        self.audio_encoder_config = Wav2Vec2Config.from_pretrained(
+            "C:/Users/86134/Desktop/pretrain_weights/wav2vec2-base-960h", local_files_only=True)
+        self.audio_encoder = Wav2Vec2Model.from_pretrained(
+            "C:/Users/86134/Desktop/pretrain_weights/wav2vec2-base-960h", local_files_only=True)
+        self.audio_encoder.feature_extractor._freeze_parameters()
+
         self.emotion = nn.Sequential(
+            nn.Embedding(emo_dim, 256),
             nn.Linear(256, 512),
             nn.LeakyReLU(0.2),
             nn.Linear(512, d_model)
         )
 
-        # self.audio_encoder_config = Wav2Vec2Config.from_pretrained("facebook/wav2vec2-base-960h")
-        # self.audio_encoder = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base-960h")
-        # self.audio_encoder_config = Wav2Vec2Config.from_pretrained("C:/Users/Chang Liu/Desktop/wav2vec2-base-960h",
-        #                                   local_files_only=True)
-        # self.audio_encoder = Wav2Vec2Model.from_pretrained("C:/Users/Chang Liu/Desktop/wav2vec2-base-960h",
-        #                                   local_files_only=True)
-        self.audio_encoder_config = Wav2Vec2Config.from_pretrained("C:/Users/18158/Desktop/EmoFace/wav2vec2-base-960h",
-                                                                   local_files_only=True)
-        self.audio_encoder = Wav2Vec2Model.from_pretrained("C:/Users/18158/Desktop/EmoFace/wav2vec2-base-960h",
-                                                           local_files_only=True)
-
-
-        self.audio_encoder.feature_extractor._freeze_parameters()
+        self.identity = nn.Sequential(
+            nn.Embedding(identity_dim, 256),
+            nn.Linear(256, 512),
+            nn.LeakyReLU(0.2),
+            nn.Linear(512, d_model)
+        )
 
         encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead)
         self.encoder = nn.TransformerEncoder(encoder_layer, num_layers)
@@ -73,32 +69,25 @@ class EmoFace(nn.Module):
 
         self.pos_encoder = PositionalEncoding(d_model=d_model)
 
-        if freeze_audio_encoder:
-            for name, param in self.audio_encoder.named_parameters():
-                param.requires_grad = False
+        for name, param in self.audio_encoder.named_parameters():
+            param.requires_grad = False
 
         nn.init.constant_(self.out_fn.weight, 0)
         nn.init.constant_(self.out_fn.bias, 0)
 
-    def forward(self, audio, label, emotion, audio_len=None):
-        e = emotion.type(torch.LongTensor).to(device=audio.device)
-        emo_embed = self.emotion(self.embed(e))
-
-        attention_mask = ~get_mask_from_lengths(audio_len) if audio_len else None
-        label = label.transpose(0, 1)
-        seq_len = label.shape[0]
+    def forward(self, audio, seq_len, id, emo):
+        id_embed = self.identity(id)
+        emo_embed = self.emotion(emo)
 
         embeddings = self.audio_encoder(audio, seq_len=seq_len, output_hidden_states=True,
-                                        attention_mask=attention_mask)
+                                        attention_mask=None)
 
-        if self._only_last_features:
-            hidden_states = embeddings.last_hidden_state
-        else:
-            hidden_states = sum(embeddings.hidden_states) / len(embeddings.hidden_states)
-
+        hidden_states = embeddings.last_hidden_state
         layer_in = self.in_fn(hidden_states)
         layer_in = self.pos_encoder(layer_in)
-        layer_in = emo_embed + layer_in
+        layer_in = layer_in + id_embed + emo_embed
         layer_in = self.encoder(layer_in)
-        out = self.out_fn(layer_in)
-        return out
+        output = self.out_fn(layer_in)
+        # output = torch.sigmoid(output)
+
+        return output
