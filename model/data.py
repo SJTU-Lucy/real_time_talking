@@ -5,17 +5,10 @@ import torch
 import librosa
 import numpy as np
 
-label_dim = 174
-emotion_id = {"ang": 0, "dis": 1, "fea": 2, "hap": 3, "neu": 4, "sad": 5, "sur": 6}
-
-
 class AudioDataProcessor:
     def __init__(self, sampling_rate=16000) -> None:
-        # self._processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
         self._processor = Wav2Vec2Processor.from_pretrained("C:/Users/86134/Desktop/pretrain_weights/wav2vec2-base-960h",
                                                             local_files_only=True)
-        # self._processor = Wav2Vec2Processor.from_pretrained("C:/Users/18158/Desktop/EmoFace/wav2vec2-base-960h",
-        #                                                     local_files_only=True)
         self._sampling_rate = sampling_rate
 
     def run(self, audio):
@@ -31,7 +24,7 @@ class FeaturesConstructor:
     def __init__(self):
         self._audio_data_processor = AudioDataProcessor()
         self._audio_sampling_rate = self._audio_data_processor.sampling_rate
-        self._fps = 30
+        self._fps = 60
 
     def __call__(self,  audio):
         audio_data = self._audio_data_processor.run(audio)

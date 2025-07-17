@@ -4,7 +4,11 @@ import time
 import torch
 import logging
 import socket
-from model.net import EncoderTransformer
+import librosa
+import numpy as np
+from scipy import signal
+from transformers import Wav2Vec2Processor
+from model.net import HuBERTFeatureExtractor
 from model.data import FeaturesConstructor
 
 logging.basicConfig(level=logging.DEBUG)
@@ -26,13 +30,19 @@ bs_list = ['eyeBlinkLeft', 'eyeBlinkRight', 'eyeSquintLeft', 'eyeSquintRight',
 
 
 class MayaSDK:
-    def __init__(self, device):
+    def __init__(self, device, clip_time=0.2):
         self.fun_socket_send = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.SPEED_PLAY = float(1.0 / 30)
+        self.fps = 60
+        self.sr = 16000
+        self.context_len = 48000
+        self.clip_len = int(clip_time * self.sr)
+        self.window_frames = int(clip_time * self.fps)
+        self.SPEED_PLAY = float(1.0 / self.fps)
         self.device = device
         self.wav_process = FeaturesConstructor()
-        self.audio2face = EncoderTransformer(out_dim=51)
+        self.audio2face = HuBERTFeatureExtractor(out_dim=51).to(self.device)
         self.audio2face.to(self.device)
+        self.prev_output = None
         self.zero_time = None
 
     def setup(self):
@@ -58,13 +68,21 @@ class MayaSDK:
 
         self.f_num = 0
 
-    def load_weight(self):
-        self.audio2face.load_state_dict(torch.load("weights/embed_50_model.pth", map_location=self.device))
+    def load_weight(self, audio_path):
+        self.audio2face.load_state_dict(torch.load("weights/hubert_50_model.pth", map_location=self.device))
         self.audio2face.eval()
 
+        self._processor = Wav2Vec2Processor.from_pretrained("C:/Users/86134/Desktop/pretrain_weights/wav2vec2-base-960h",
+                                                            local_files_only=True)
+        speech_array, sampling_rate = librosa.load(audio_path, sr=self.sr)
+        warmup_audio = np.squeeze(self._processor(speech_array, sampling_rate=sampling_rate).input_values)
+        warmup_audio = torch.from_numpy(warmup_audio[-self.context_len:]).unsqueeze(0)
+
+        self.buffer = warmup_audio.to(self.device)
+
         with torch.no_grad():
-            dummy_audio = torch.randn(1, 3200).to(self.device)
-            dummy_seq_len = torch.Tensor([6]).int().to(self.device)
+            dummy_audio = warmup_audio.to(self.device)
+            dummy_seq_len = torch.Tensor([warmup_audio.shape[1] * 60 // 16000]).int().to(self.device)
             dummy_identity = torch.zeros(1).long().to(self.device)
             dummy_emotion = torch.zeros(1).long().to(self.device)
             _ = self.audio2face(dummy_audio, dummy_seq_len, dummy_identity, dummy_emotion)
@@ -97,10 +115,19 @@ class MayaSDK:
             seq_len = torch.Tensor([seq_len]).int().to(self.device)
             emotion = torch.Tensor([emotion]).long().unsqueeze(0).to(self.device)
             identity = torch.Tensor([identity]).long().unsqueeze(0).to(self.device)
+            # fake context
+            full_audio = torch.cat([self.buffer, audio], dim=1)
+            full_seq_len = int(full_audio.shape[1] / self.sr * self.fps)
+            total_len = full_audio.shape[1]
+            if total_len > self.context_len:
+                self.buffer = full_audio[:, -self.context_len:].detach()
+            else:
+                self.buffer = full_audio.detach()
+
             duration = time.perf_counter() - start
             logging.info(f"[Time] wav_process took {duration:.4f}s")
-            # logging.info("processed wav data: %s %s", audio.shape, seq_len)
-            res = [audio, seq_len, identity, emotion]
+            # logging.info("processed wav data: %s %s", full_audio.shape, full_seq_len)
+            res = [full_audio, full_seq_len, identity, emotion]
             self.audio2face_queue.put(res)
 
     def audio2face_worker(self):
@@ -120,11 +147,22 @@ class MayaSDK:
                 self.write_queue.put(None)
                 break
             start = time.perf_counter()
-            audio, seq_len, identity, emotion = item
+            full_audio, full_seq_len, identity, emotion = item
             logging.info(f"[Time] audio2face input {time.time() - self.zero_time:.4f}s")
-            result = self.audio2face(audio, seq_len, identity, emotion)
-            result = result.squeeze()
-            result = result.detach().cpu().numpy()
+            out = self.audio2face(full_audio, full_seq_len, identity, emotion)
+            current_output = out[:, -self.window_frames:].squeeze(0).detach().cpu().numpy()
+
+            if self.prev_output is None:
+                current_output_cat = current_output
+            else:
+                current_output_cat = np.concatenate([self.prev_output, current_output], axis=0)
+
+            current_output_cat = current_output_cat.T
+            output = signal.savgol_filter(current_output_cat, window_length=5, polyorder=2, mode="nearest").T
+            result = output[-self.window_frames:]
+
+            self.prev_output = result
+
             duration = time.perf_counter() - start
             logging.info(f"[Time] audio2face took {duration:.4f}s")
             # logging.info("pred rig: %s", result.shape)

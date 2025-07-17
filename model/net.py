@@ -1,19 +1,8 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import math
-from model.wav2vec2 import Wav2Vec2Model
-from transformers import Wav2Vec2Config
-
-
-def get_mask_from_lengths(lengths, max_len=None):
-    lengths = lengths.to(torch.long)
-    if max_len is None:
-        max_len = torch.max(lengths).item()
-
-    ids = torch.arange(0, max_len).unsqueeze(0).expand(lengths.shape[0], -1).to(lengths.device)
-    mask = ids < lengths.unsqueeze(1).expand(-1, max_len)
-
-    return mask
+from transformers import HubertModel
 
 
 class PositionalEncoding(torch.nn.Module):
@@ -35,15 +24,13 @@ class PositionalEncoding(torch.nn.Module):
         return self.dropout(x)
 
 
-class EncoderTransformer(nn.Module):
+class HuBERTFeatureExtractor(nn.Module):
     def __init__(self, out_dim, d_model=512, nhead=8, num_layers=10, identity_dim=8, emo_dim=4):
         super().__init__()
         self._out_dim = out_dim
 
-        self.audio_encoder_config = Wav2Vec2Config.from_pretrained(
-            "C:/Users/86134/Desktop/pretrain_weights/wav2vec2-base-960h", local_files_only=True)
-        self.audio_encoder = Wav2Vec2Model.from_pretrained(
-            "C:/Users/86134/Desktop/pretrain_weights/wav2vec2-base-960h", local_files_only=True)
+        self.audio_encoder = HubertModel.from_pretrained("C:/Users/86134/Desktop/pretrain_weights/hubert-base-ls960",
+                                                         local_files_only=True)
         self.audio_encoder.feature_extractor._freeze_parameters()
 
         self.emotion = nn.Sequential(
@@ -62,8 +49,8 @@ class EncoderTransformer(nn.Module):
 
         encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead)
         self.encoder = nn.TransformerEncoder(encoder_layer, num_layers)
+        hidden_size = self.audio_encoder.encoder.config.hidden_size
 
-        hidden_size = self.audio_encoder_config.hidden_size
         self.in_fn = nn.Linear(hidden_size, d_model)
         self.out_fn = nn.Linear(d_model, out_dim)
 
@@ -75,19 +62,22 @@ class EncoderTransformer(nn.Module):
         nn.init.constant_(self.out_fn.weight, 0)
         nn.init.constant_(self.out_fn.bias, 0)
 
+    def linear_interpolation(self, features, seq_len):
+        features = features.transpose(1, 2)
+        output_features = F.interpolate(features, size=seq_len, align_corners=True, mode='linear')
+        return output_features.transpose(1, 2)
+
     def forward(self, audio, seq_len, id, emo):
         id_embed = self.identity(id)
         emo_embed = self.emotion(emo)
 
-        embeddings = self.audio_encoder(audio, seq_len=seq_len, output_hidden_states=True,
-                                        attention_mask=None)
+        hidden_states = self.audio_encoder(audio).last_hidden_state
+        hidden_states = self.linear_interpolation(hidden_states, seq_len=seq_len)
 
-        hidden_states = embeddings.last_hidden_state
         layer_in = self.in_fn(hidden_states)
         layer_in = self.pos_encoder(layer_in)
         layer_in = layer_in + id_embed + emo_embed
         layer_in = self.encoder(layer_in)
         output = self.out_fn(layer_in)
-        # output = torch.sigmoid(output)
 
         return output

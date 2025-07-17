@@ -39,7 +39,7 @@ def run(SDK, sr=16000, chunk=3200):
             end = True
         # emotion id "neutral": 0, "angry": 1, "happy": 2, "song": 3
         identity_id = 0
-        emotion_id = 0
+        emotion_id = 1
         SDK.wav_process_queue.put([audio_data, identity_id, emotion_id])
 
         if SDK.worker_exception:
@@ -56,7 +56,7 @@ def run(SDK, sr=16000, chunk=3200):
 
 
 if __name__ == "__main__":
-    SDK = MayaSDK(device)
+    SDK = MayaSDK(device, clip_time=0.2)
     SDK.setup()
-    SDK.load_weight()
+    SDK.load_weight("assets/mute.wav")
     run(SDK)

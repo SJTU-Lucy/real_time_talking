@@ -8,15 +8,6 @@ import threading
 import pyaudio
 
 
-class UnknownValueError(Exception):
-    pass
-
-
-class MyCustomWarning(UserWarning):
-    pass
-
-
-
 class AudioPlay:
     FORMAT = pyaudio.paInt16
     CHANNELS = 1

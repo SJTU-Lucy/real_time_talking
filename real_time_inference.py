@@ -33,35 +33,36 @@ def run(SDK, sr=16000, chunk=6400):
                     rate=sr,
                     input=True,
                     frames_per_buffer=chunk)
-
-    while not keyboard.is_pressed('left ctrl'):
-        continue
-
-    while keyboard.is_pressed('left ctrl'):
+    end = False
+    start_time = time.time()
+    SDK.set_zero_time(start_time)
+    while not end:
         data = stream.read(chunk)
         audio_data = np.frombuffer(data, dtype=np.int16)
         if len(audio_data) < chunk:
             audio_data = np.pad(audio_data, (0, chunk - len(audio_data)), mode="constant")
+            end = True
         # emotion id "neutral": 0, "angry": 1, "happy": 2, "song": 3
         identity_id = 0
-        emotion_id = 0
+        emotion_id = 1
         SDK.wav_process_queue.put([audio_data, identity_id, emotion_id])
-        logging.info("detecting audio: %s", audio_data.shape)
 
         if SDK.worker_exception:
             raise SDK.worker_exception
+        if keyboard.is_pressed('esc'):
+            break
 
     stream.stop_stream()
     stream.close()
     p.terminate()
-    time.sleep(10000)
+    time.sleep(1)
 
     SDK.close()
 
 
 if __name__ == "__main__":
     output_path = "./result/output.txt"
-    SDK = StreamSDK(output_path, device)
+    SDK = StreamSDK(output_path, device, clip_time=0.2)
     SDK.setup()
-    SDK.load_weight()
+    SDK.load_weight("assets/mute.wav")
     run(SDK)

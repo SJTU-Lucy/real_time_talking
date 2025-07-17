@@ -42,8 +42,8 @@ def run(SDK, wav_file, chunk=3200):
             next_sample_time += gap_time
             sample_idx += chunk
             # emotion id "neutral": 0, "angry": 1, "happy": 2, "song": 3
-            identity_id = 0
-            emotion_id = 1
+            identity_id = 1
+            emotion_id = 2
             SDK.wav_process_queue.put([audio_data, identity_id, emotion_id])
         else:
             time.sleep(0.001)
@@ -56,9 +56,9 @@ def run(SDK, wav_file, chunk=3200):
 
 
 if __name__ == "__main__":
-    wav_path = "C:/Users/86134\Desktop/data/unitalker_data_release_V1/D6_unitalker_Chinese_speech/test/speaker0_happy_CN_1_iPhone01.wav"
-    SDK = MayaSDK(device)
+    wav_path = "assets/speaker1_angry_CH_23_iPhone01.wav"
+    SDK = MayaSDK(device, clip_time=0.2)
     SDK.setup()
-    SDK.load_weight()
+    SDK.load_weight("assets/context.wav")
     time.sleep(2)
-    run(SDK, wav_path)
+    run(SDK, wav_path, chunk=3200)
